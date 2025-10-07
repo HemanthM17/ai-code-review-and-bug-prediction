@@ -28,7 +28,7 @@ export const Hero = ({ onGetStarted }: { onGetStarted: () => void }) => {
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             Analyze your code instantly. Detect bugs, vulnerabilities, and bad practices. 
-            Get AI-powered suggestions to improve code quality.
+            Get AI-powered suggestions to improve code quality across 16+ programming languages.
           </p>
           
           <div className="flex flex-wrap gap-4 justify-center pt-4">

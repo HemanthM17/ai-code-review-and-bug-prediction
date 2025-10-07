@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Hero } from "@/components/Hero";
+import { SupportedLanguages } from "@/components/SupportedLanguages";
 import { CodeInput } from "@/components/CodeInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
 
@@ -28,6 +29,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Hero onGetStarted={handleGetStarted} />
+      <SupportedLanguages />
       <div ref={codeInputRef}>
         <CodeInput onAnalyze={handleAnalyze} />
       </div>
