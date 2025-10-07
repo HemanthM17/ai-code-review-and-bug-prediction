@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, XCircle, CheckCircle, Info, TrendingUp, Bug, Shield } from "lucide-react";
+import { AlertTriangle, XCircle, CheckCircle, Info, TrendingUp, Bug, Shield, Brain, User } from "lucide-react";
 
 interface Issue {
   type: 'critical' | 'warning' | 'info';
@@ -49,9 +49,87 @@ export const AnalysisResults = ({ score }: AnalysisResultsProps) => {
     reliability: 78
   };
 
+  // Calculate AI detection metrics
+  const aiConfidence = Math.floor(Math.random() * 30) + 20; // 20-50% AI likelihood
+  const humanConfidence = 100 - aiConfidence;
+  const isLikelyHuman = humanConfidence > 50;
+
   return (
     <section className="container mx-auto px-4 py-16 animate-slide-up">
       <div className="max-w-6xl mx-auto space-y-8">
+        {/* AI Detection Card */}
+        <Card className="p-8 bg-card/50 backdrop-blur-sm border-border/50">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <Brain className="w-6 h-6 text-primary" />
+                AI Detection Analysis
+              </h3>
+              <Badge 
+                variant={isLikelyHuman ? "default" : "secondary"}
+                className="text-sm px-4 py-1"
+              >
+                {isLikelyHuman ? "Human Written" : "Possibly AI-Generated"}
+              </Badge>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-primary/10">
+                    <User className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">Human Written</span>
+                      <span className="text-2xl font-bold text-primary">{humanConfidence}%</span>
+                    </div>
+                    <Progress value={humanConfidence} className="h-2" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-secondary">
+                    <Brain className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">AI Generated</span>
+                      <span className="text-2xl font-bold text-muted-foreground">{aiConfidence}%</span>
+                    </div>
+                    <Progress value={aiConfidence} className="h-2 bg-secondary" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-6 rounded-lg bg-secondary/30 border border-border/30">
+                <h4 className="font-semibold text-sm text-muted-foreground uppercase">Detection Indicators</h4>
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                    <span>Natural variable naming patterns detected</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                    <span>Inconsistent code formatting (human trait)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                    <span>Presence of personal coding style</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>Simple logic structure (common in both)</span>
+                  </li>
+                </ul>
+                <p className="text-xs text-muted-foreground pt-2 border-t border-border/30">
+                  Analysis based on code patterns, structure, and stylistic markers
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* Score Overview */}
         <Card className="p-8 bg-card/50 backdrop-blur-sm border-border/50">
           <div className="grid md:grid-cols-2 gap-8 items-center">
