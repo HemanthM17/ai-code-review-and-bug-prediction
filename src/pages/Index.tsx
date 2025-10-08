@@ -8,10 +8,33 @@ import { analyzeCode, type AnalysisResult } from "@/utils/codeAnalysis";
 const Index = () => {
   const [showResults, setShowResults] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [demoCode, setDemoCode] = useState<string>('');
+  const [demoLanguage, setDemoLanguage] = useState<string>('');
   const codeInputRef = useRef<HTMLDivElement>(null);
 
   const handleGetStarted = () => {
     codeInputRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleViewDemo = () => {
+    const exampleCode = `function authenticateUser(username, password) {
+  // TODO: Add input validation
+  const query = "SELECT * FROM users WHERE username = '" + username + "' AND password = '" + password + "'";
+  const result = eval("database.query('" + query + "')");
+  
+  console.log("User data:", result);
+  console.log("Password:", password);
+  document.getElementById('output').innerHTML = result.name;
+  
+  return result;
+}`;
+    setDemoCode(exampleCode);
+    setDemoLanguage('javascript');
+    
+    // Scroll to code input section
+    setTimeout(() => {
+      codeInputRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const handleAnalyze = (code: string, language: string) => {
@@ -28,10 +51,10 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Hero onGetStarted={handleGetStarted} />
+      <Hero onGetStarted={handleGetStarted} onViewDemo={handleViewDemo} />
       <SupportedLanguages />
       <div ref={codeInputRef}>
-        <CodeInput onAnalyze={handleAnalyze} />
+        <CodeInput onAnalyze={handleAnalyze} demoCode={demoCode} demoLanguage={demoLanguage} />
       </div>
       {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
     </div>

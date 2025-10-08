@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Code2, Shield, TrendingUp, Zap } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
-export const Hero = ({ onGetStarted }: { onGetStarted: () => void }) => {
+export const Hero = ({ onGetStarted, onViewDemo }: { onGetStarted: () => void; onViewDemo: () => void }) => {
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
       <div 
@@ -43,6 +43,7 @@ export const Hero = ({ onGetStarted }: { onGetStarted: () => void }) => {
             <Button 
               size="lg" 
               variant="secondary"
+              onClick={onViewDemo}
               className="backdrop-blur-sm"
             >
               View Demo

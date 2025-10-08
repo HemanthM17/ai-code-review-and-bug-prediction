@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { toast } from "sonner";
 
 interface CodeInputProps {
   onAnalyze: (code: string, language: string) => void;
+  demoCode?: string;
+  demoLanguage?: string;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -36,10 +38,20 @@ const SUPPORTED_LANGUAGES = [
   { value: "sql", label: "SQL", extensions: [".sql"] },
 ];
 
-export const CodeInput = ({ onAnalyze }: CodeInputProps) => {
+export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps) => {
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Update code and language when demo is loaded
+  useEffect(() => {
+    if (demoCode) {
+      setCode(demoCode);
+      if (demoLanguage) {
+        setLanguage(demoLanguage);
+      }
+    }
+  }, [demoCode, demoLanguage]);
 
   const detectLanguage = (filename: string): string => {
     const ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();

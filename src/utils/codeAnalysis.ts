@@ -104,72 +104,92 @@ function detectIssues(code: string, language: string): Issue[] {
   
   // Security issues
   if (/eval\s*\(/i.test(code)) {
+    const evalLines = lines.map((line, idx) => line.match(/eval\s*\(/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'Dangerous eval() usage',
-      description: 'Using eval() can execute arbitrary code and is a serious security risk.',
-      suggestion: 'Replace eval() with safer alternatives like JSON.parse() or Function constructor with strict validation.',
+      title: 'Dangerous eval() usage detected',
+      description: 'eval() executes arbitrary code and poses severe security risks including code injection attacks.',
+      line: evalLines[0] as number,
+      suggestion: 'Use JSON.parse() for JSON data, or implement a safe parser. If dynamic code execution is needed, use Function constructor with strict input validation and Content Security Policy.',
     });
   }
   
-  if (/innerHTML\s*=/i.test(code) && !/<[^>]+>/i.test(code)) {
+  if (/innerHTML\s*=/i.test(code)) {
+    const innerHTMLLines = lines.map((line, idx) => line.match(/innerHTML\s*=/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
-      type: 'warning',
-      title: 'Potential XSS vulnerability',
-      description: 'Direct innerHTML assignment can lead to XSS attacks.',
-      suggestion: 'Use textContent, or sanitize HTML content before insertion.',
+      type: 'critical',
+      title: 'XSS vulnerability: Unsafe innerHTML usage',
+      description: 'innerHTML assignment with user input can execute malicious scripts, leading to Cross-Site Scripting attacks.',
+      line: innerHTMLLines[0] as number,
+      suggestion: 'Use textContent for plain text. For HTML, sanitize with DOMPurify library or use createElement() with setAttribute(). Example: element.textContent = userInput;',
     });
   }
   
   // SQL Injection patterns
-  if (/(SELECT|INSERT|UPDATE|DELETE).*\+.*['"]/.test(code)) {
+  if (/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat).*['"`]/i.test(code)) {
+    const sqlLines = lines.map((line, idx) => 
+      line.match(/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat).*['"`]/i) ? idx + 1 : null
+    ).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'Potential SQL Injection',
-      description: 'String concatenation in SQL queries can lead to SQL injection.',
-      suggestion: 'Use parameterized queries or prepared statements.',
+      title: 'SQL Injection vulnerability detected',
+      description: 'String concatenation in SQL queries allows attackers to inject malicious SQL code, potentially exposing or destroying your database.',
+      line: sqlLines[0] as number,
+      suggestion: language.match(/javascript|typescript/) 
+        ? 'Use parameterized queries: db.query("SELECT * FROM users WHERE id = ?", [userId]) or ORM methods like User.findOne({ id })'
+        : 'Use prepared statements with bound parameters. Never concatenate user input into SQL strings.',
     });
   }
   
   // Code quality issues
-  const consoleCount = (code.match(/console\.(log|error|warn)/g) || []).length;
-  if (consoleCount > 5) {
+  const consoleCount = (code.match(/console\.(log|error|warn|debug)/g) || []).length;
+  if (consoleCount > 3) {
     issues.push({
       type: 'warning',
-      title: 'Excessive console statements',
-      description: `Found ${consoleCount} console statements. This can impact performance and leak information.`,
-      suggestion: 'Remove debug console statements or use a proper logging library.',
+      title: `Excessive debugging: ${consoleCount} console statements found`,
+      description: 'Console statements in production code can expose sensitive data, impact performance, and clutter browser console.',
+      suggestion: language.match(/javascript|typescript/)
+        ? 'Remove console.log statements before deployment. Consider using a logger like Winston or Pino with environment-based log levels.'
+        : 'Remove print/debug statements. Use a proper logging framework with configurable log levels for production.',
     });
   }
   
-  const todoCount = (code.match(/TODO|FIXME|HACK/gi) || []).length;
+  const todoCount = (code.match(/TODO|FIXME|HACK|XXX/gi) || []).length;
   if (todoCount > 0) {
+    const todoLines = lines.map((line, idx) => line.match(/TODO|FIXME|HACK|XXX/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
       type: 'info',
-      title: 'Unfinished work detected',
-      description: `Found ${todoCount} TODO/FIXME comments indicating incomplete code.`,
-      suggestion: 'Complete the pending tasks before production deployment.',
+      title: `${todoCount} incomplete task${todoCount > 1 ? 's' : ''} found`,
+      description: `Found ${todoCount} TODO/FIXME/HACK comment(s) indicating unfinished functionality or temporary workarounds.`,
+      line: todoLines[0] as number,
+      suggestion: 'Address all TODO items before deploying to production. Create tickets for tracking and assign owners for each pending task.',
     });
   }
   
   // No error handling
   if (language.match(/javascript|typescript|python|java/) && 
-      (code.match(/async|fetch|axios|request/i) && !code.match(/try|catch|except|throw/i))) {
+      (code.match(/async|await|fetch|axios|request|Promise/i) && !code.match(/try|catch|except|throw|\.catch\(/i))) {
     issues.push({
       type: 'warning',
-      title: 'Missing error handling',
-      description: 'Async operations without try-catch blocks can cause unhandled rejections.',
-      suggestion: 'Add try-catch blocks around async operations.',
+      title: 'Missing error handling for async operations',
+      description: 'Async/await or Promise-based code without error handling can cause unhandled rejections, crashing your application or leaving it in an inconsistent state.',
+      suggestion: language.match(/javascript|typescript/)
+        ? 'Wrap async code in try-catch blocks: try { const result = await fetch(url); } catch (error) { console.error("Failed:", error); } or use .catch() for Promises.'
+        : 'Add try-except blocks around async operations to handle errors gracefully.',
     });
   }
   
   // Hardcoded credentials
-  if (/password\s*=\s*['"][^'"]+['"]|api[_-]?key\s*=\s*['"][^'"]+['"]/i.test(code)) {
+  if (/password\s*=\s*['"][^'"]+['"]|api[_-]?key\s*=\s*['"][^'"]+['"]|secret\s*=\s*['"][^'"]+['"]/i.test(code)) {
+    const credLines = lines.map((line, idx) => 
+      line.match(/password\s*=\s*['"][^'"]+['"]|api[_-]?key\s*=\s*['"][^'"]+['"]|secret\s*=\s*['"][^'"]+['"]/i) ? idx + 1 : null
+    ).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'Hardcoded credentials detected',
-      description: 'Credentials should never be hardcoded in source code.',
-      suggestion: 'Use environment variables or secure credential management systems.',
+      title: 'Security breach: Hardcoded credentials found',
+      description: 'Hardcoded passwords, API keys, or secrets in source code will be exposed in version control and can be discovered by attackers.',
+      line: credLines[0] as number,
+      suggestion: 'Store credentials in environment variables (.env file) and use process.env.API_KEY or similar. Never commit .env files. Use secret management services like AWS Secrets Manager or Azure Key Vault for production.',
     });
   }
   
@@ -193,12 +213,13 @@ function detectIssues(code: string, language: string): Issue[] {
   
   // Missing documentation
   const metrics = calculateMetrics(code, language);
-  if (metrics.functions > 3 && metrics.commentLines < metrics.functions) {
+  const commentRatio = metrics.commentLines / (metrics.codeLines || 1);
+  if (metrics.functions > 3 && commentRatio < 0.1) {
     issues.push({
       type: 'info',
-      title: 'Insufficient documentation',
-      description: 'Low comment-to-code ratio detected.',
-      suggestion: 'Add comments and documentation to improve code maintainability.',
+      title: 'Insufficient code documentation',
+      description: `Found ${metrics.functions} functions but only ${metrics.commentLines} comment lines. Undocumented code is harder to maintain and understand.`,
+      suggestion: 'Add JSDoc/docstring comments for each function explaining parameters, return values, and purpose. Example: /** @param {string} id - User ID @returns {User} User object */',
     });
   }
   
