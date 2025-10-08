@@ -3,21 +3,21 @@ import { Hero } from "@/components/Hero";
 import { SupportedLanguages } from "@/components/SupportedLanguages";
 import { CodeInput } from "@/components/CodeInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
+import { analyzeCode, type AnalysisResult } from "@/utils/codeAnalysis";
 
 const Index = () => {
   const [showResults, setShowResults] = useState(false);
-  const [codeQualityScore, setCodeQualityScore] = useState(0);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const codeInputRef = useRef<HTMLDivElement>(null);
 
   const handleGetStarted = () => {
     codeInputRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleAnalyze = (code: string) => {
-    // Simulate code analysis and generate a score
-    // In a real app, this would call a backend API
-    const score = Math.floor(Math.random() * 30) + 65; // Random score between 65-95
-    setCodeQualityScore(score);
+  const handleAnalyze = (code: string, language: string) => {
+    // Perform actual code analysis
+    const result = analyzeCode(code, language);
+    setAnalysisResult(result);
     setShowResults(true);
     
     // Scroll to results
@@ -33,7 +33,7 @@ const Index = () => {
       <div ref={codeInputRef}>
         <CodeInput onAnalyze={handleAnalyze} />
       </div>
-      {showResults && <AnalysisResults score={codeQualityScore} />}
+      {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
     </div>
   );
 };

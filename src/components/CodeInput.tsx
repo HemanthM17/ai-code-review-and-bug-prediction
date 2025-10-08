@@ -14,7 +14,7 @@ import { Upload, Code, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface CodeInputProps {
-  onAnalyze: (code: string) => void;
+  onAnalyze: (code: string, language: string) => void;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -61,7 +61,7 @@ export const CodeInput = ({ onAnalyze }: CodeInputProps) => {
     
     // Simulate analysis delay
     setTimeout(() => {
-      onAnalyze(code);
+      onAnalyze(code, language);
       setIsAnalyzing(false);
       toast.success("Analysis complete!");
     }, 2000);
