@@ -102,124 +102,181 @@ function detectIssues(code: string, language: string): Issue[] {
   const issues: Issue[] = [];
   const lines = code.split('\n');
   
-  // Security issues
+  // Advanced Security Analysis
+  
+  // 1. eval() - Critical Security Risk
   if (/eval\s*\(/i.test(code)) {
     const evalLines = lines.map((line, idx) => line.match(/eval\s*\(/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'Dangerous eval() usage detected',
-      description: 'eval() executes arbitrary code and poses severe security risks including code injection attacks.',
+      title: 'Critical: eval() allows arbitrary code execution',
+      description: `Found on line ${evalLines[0]}. The eval() function executes any string as code, making it extremely dangerous. Attackers can inject malicious code that will run with full application privileges, potentially stealing data, modifying behavior, or compromising the entire system.`,
       line: evalLines[0] as number,
-      suggestion: 'Use JSON.parse() for JSON data, or implement a safe parser. If dynamic code execution is needed, use Function constructor with strict input validation and Content Security Policy.',
+      suggestion: 'Replace eval() with safer alternatives: For JSON parsing, use JSON.parse(). For mathematical expressions, use a safe expression evaluator library like math.js. If you absolutely need dynamic code, use new Function() with strict validation and Content Security Policy headers.',
     });
   }
   
+  // 2. XSS via innerHTML - Critical
   if (/innerHTML\s*=/i.test(code)) {
     const innerHTMLLines = lines.map((line, idx) => line.match(/innerHTML\s*=/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'XSS vulnerability: Unsafe innerHTML usage',
-      description: 'innerHTML assignment with user input can execute malicious scripts, leading to Cross-Site Scripting attacks.',
+      title: 'Critical XSS Risk: Direct innerHTML manipulation',
+      description: `Detected on line ${innerHTMLLines[0]}. Setting innerHTML with unsanitized user input allows attackers to inject malicious scripts that execute in users' browsers, potentially stealing cookies, session tokens, or performing unauthorized actions.`,
       line: innerHTMLLines[0] as number,
-      suggestion: 'Use textContent for plain text. For HTML, sanitize with DOMPurify library or use createElement() with setAttribute(). Example: element.textContent = userInput;',
+      suggestion: 'Use textContent for plain text (e.g., element.textContent = userInput). For HTML content, sanitize using DOMPurify: element.innerHTML = DOMPurify.sanitize(userInput). Or use createElement() and setAttribute() for dynamic content. Modern frameworks like React automatically escape content.',
     });
   }
   
-  // SQL Injection patterns
-  if (/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat).*['"`]/i.test(code)) {
+  // 3. SQL Injection - Critical
+  if (/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat|\$\{).*['"`]/i.test(code)) {
     const sqlLines = lines.map((line, idx) => 
-      line.match(/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat).*['"`]/i) ? idx + 1 : null
+      line.match(/(SELECT|INSERT|UPDATE|DELETE).*(\+|concat|\$\{).*['"`]/i) ? idx + 1 : null
     ).filter(Boolean);
     issues.push({
       type: 'critical',
-      title: 'SQL Injection vulnerability detected',
-      description: 'String concatenation in SQL queries allows attackers to inject malicious SQL code, potentially exposing or destroying your database.',
+      title: 'Critical SQL Injection vulnerability',
+      description: `Found on line ${sqlLines[0]}. String concatenation in SQL queries allows attackers to modify query logic, bypass authentication, steal data, or delete entire databases. This is one of the most dangerous web vulnerabilities.`,
       line: sqlLines[0] as number,
       suggestion: language.match(/javascript|typescript/) 
-        ? 'Use parameterized queries: db.query("SELECT * FROM users WHERE id = ?", [userId]) or ORM methods like User.findOne({ id })'
-        : 'Use prepared statements with bound parameters. Never concatenate user input into SQL strings.',
+        ? 'Use parameterized queries: db.query("SELECT * FROM users WHERE id = $1", [userId]) or prepared statements. With ORMs like Prisma: prisma.user.findUnique({ where: { id } }). Never concatenate user input into SQL strings.'
+        : language.match(/python/) 
+        ? 'Use parameterized queries: cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,)) or ORM methods. Never use string formatting (f-strings, %) with SQL.'
+        : 'Use prepared statements with bound parameters. Never concatenate user input into SQL queries.',
     });
   }
   
-  // Code quality issues
-  const consoleCount = (code.match(/console\.(log|error|warn|debug)/g) || []).length;
-  if (consoleCount > 3) {
+  // 4. Hardcoded Secrets - Critical
+  if (/(?:password|api[_-]?key|secret|token|auth)\s*[=:]\s*['"][^'"]{8,}['"]/i.test(code)) {
+    const credLines = lines.map((line, idx) => 
+      line.match(/(?:password|api[_-]?key|secret|token|auth)\s*[=:]\s*['"][^'"]{8,}['"]/i) ? idx + 1 : null
+    ).filter(Boolean);
+    issues.push({
+      type: 'critical',
+      title: 'Critical: Hardcoded credentials detected',
+      description: `Found on line ${credLines[0]}. Credentials in source code are exposed in version control history forever, even if deleted later. They can be discovered through GitHub searches, leaked repositories, or compromised systems.`,
+      line: credLines[0] as number,
+      suggestion: 'Store secrets in environment variables: process.env.API_KEY or os.environ["API_KEY"]. Use .env files locally (add to .gitignore!). In production, use secret managers like AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault. Rotate exposed credentials immediately.',
+    });
+  }
+  
+  // 5. Weak Cryptography
+  if (/md5|sha1(?!\d)|base64(?!url).*password/i.test(code)) {
+    issues.push({
+      type: 'critical',
+      title: 'Weak cryptographic algorithm detected',
+      description: 'MD5 and SHA1 are cryptographically broken and can be cracked in seconds. Base64 is encoding, not encryption. Using weak crypto for passwords means attackers can reverse them easily.',
+      suggestion: language.match(/javascript|typescript/)
+        ? 'For passwords, use bcrypt (12+ rounds) or Argon2: await bcrypt.hash(password, 12). For hashing, use SHA-256 or better. For encryption, use AES-256-GCM. Never roll your own crypto.'
+        : 'Use bcrypt, Argon2, or PBKDF2 for passwords with proper salts. For hashing, use SHA-256+. For encryption, use established libraries with modern algorithms.',
+    });
+  }
+  
+  // Code Quality Issues
+  
+  // 6. Console statements
+  const consoleCount = (code.match(/console\.(log|error|warn|debug|info)/g) || []).length;
+  if (consoleCount > 5) {
     issues.push({
       type: 'warning',
-      title: `Excessive debugging: ${consoleCount} console statements found`,
-      description: 'Console statements in production code can expose sensitive data, impact performance, and clutter browser console.',
+      title: `${consoleCount} console statements found`,
+      description: 'Console logs in production expose sensitive data (user IDs, API responses, internal logic) to anyone with browser DevTools. They also impact performance and clutter the console, making real errors harder to spot.',
       suggestion: language.match(/javascript|typescript/)
-        ? 'Remove console.log statements before deployment. Consider using a logger like Winston or Pino with environment-based log levels.'
-        : 'Remove print/debug statements. Use a proper logging framework with configurable log levels for production.',
+        ? 'Remove console.* before deploying. Use a proper logger (Winston, Pino, or Bunyan) with environment-based levels: if (process.env.NODE_ENV !== "production") console.log(). Set up error tracking with Sentry or similar.'
+        : 'Remove print/debug statements. Use a logging framework with configurable levels (logging, log4j) that can be disabled in production.',
     });
   }
   
-  const todoCount = (code.match(/TODO|FIXME|HACK|XXX/gi) || []).length;
-  if (todoCount > 0) {
-    const todoLines = lines.map((line, idx) => line.match(/TODO|FIXME|HACK|XXX/i) ? idx + 1 : null).filter(Boolean);
-    issues.push({
-      type: 'info',
-      title: `${todoCount} incomplete task${todoCount > 1 ? 's' : ''} found`,
-      description: `Found ${todoCount} TODO/FIXME/HACK comment(s) indicating unfinished functionality or temporary workarounds.`,
-      line: todoLines[0] as number,
-      suggestion: 'Address all TODO items before deploying to production. Create tickets for tracking and assign owners for each pending task.',
-    });
-  }
-  
-  // No error handling
+  // 7. Missing Error Handling
   if (language.match(/javascript|typescript|python|java/) && 
-      (code.match(/async|await|fetch|axios|request|Promise/i) && !code.match(/try|catch|except|throw|\.catch\(/i))) {
+      (code.match(/async|await|fetch|axios|request|Promise|\.then\(/i) && !code.match(/try|catch|except|throw|\.catch\(|error/i))) {
     issues.push({
       type: 'warning',
       title: 'Missing error handling for async operations',
-      description: 'Async/await or Promise-based code without error handling can cause unhandled rejections, crashing your application or leaving it in an inconsistent state.',
+      description: 'Async code without error handling causes unhandled promise rejections, crashes, silent failures, or leaves the app in an inconsistent state. Users see generic errors or worse - no error at all.',
       suggestion: language.match(/javascript|typescript/)
-        ? 'Wrap async code in try-catch blocks: try { const result = await fetch(url); } catch (error) { console.error("Failed:", error); } or use .catch() for Promises.'
-        : 'Add try-except blocks around async operations to handle errors gracefully.',
+        ? 'Wrap async code in try-catch: try { const data = await fetch(url); } catch (error) { console.error("API failed:", error); showToast("Error loading data"); }. Use .catch() for promises. Add global error handlers for unhandled rejections.'
+        : 'Add try-except blocks around all async/IO operations. Log errors and provide user feedback. Use context managers (with statements) for resource cleanup.',
     });
   }
   
-  // Hardcoded credentials
-  if (/password\s*=\s*['"][^'"]+['"]|api[_-]?key\s*=\s*['"][^'"]+['"]|secret\s*=\s*['"][^'"]+['"]/i.test(code)) {
-    const credLines = lines.map((line, idx) => 
-      line.match(/password\s*=\s*['"][^'"]+['"]|api[_-]?key\s*=\s*['"][^'"]+['"]|secret\s*=\s*['"][^'"]+['"]/i) ? idx + 1 : null
-    ).filter(Boolean);
+  // 8. TODO/FIXME comments
+  const todoCount = (code.match(/TODO|FIXME|HACK|XXX|BUG/gi) || []).length;
+  if (todoCount > 0) {
+    const todoLines = lines.map((line, idx) => line.match(/TODO|FIXME|HACK|XXX|BUG/i) ? idx + 1 : null).filter(Boolean);
     issues.push({
-      type: 'critical',
-      title: 'Security breach: Hardcoded credentials found',
-      description: 'Hardcoded passwords, API keys, or secrets in source code will be exposed in version control and can be discovered by attackers.',
-      line: credLines[0] as number,
-      suggestion: 'Store credentials in environment variables (.env file) and use process.env.API_KEY or similar. Never commit .env files. Use secret management services like AWS Secrets Manager or Azure Key Vault for production.',
+      type: 'info',
+      title: `${todoCount} unfinished task marker${todoCount > 1 ? 's' : ''} (TODO/FIXME)`,
+      description: `Found starting at line ${todoLines[0]}. These comments indicate incomplete features, temporary workarounds, or known bugs. Shipping code with TODOs means you're deploying unfinished work.`,
+      line: todoLines[0] as number,
+      suggestion: 'Review each TODO: Complete the work, create a ticket in your issue tracker (Jira, Linear, GitHub Issues) with proper priority, or remove if no longer relevant. Assign owners and due dates. Never deploy critical TODOs.',
     });
   }
   
-  // Long functions
-  let currentFunction = '';
-  let functionLineCount = 0;
-  lines.forEach((line, idx) => {
-    if (/function|def|=>/.test(line)) {
-      currentFunction = line.trim().substring(0, 50);
-      functionLineCount = 0;
-    } else if (line.trim() === '}' && functionLineCount > 50) {
-      issues.push({
-        type: 'info',
-        title: 'Long function detected',
-        description: `Function around line ${idx} has ${functionLineCount} lines.`,
-        suggestion: 'Consider breaking down large functions into smaller, reusable functions.',
-      });
-    }
-    functionLineCount++;
-  });
+  // 9. Magic Numbers
+  const magicNumbers = code.match(/\b(?<!\.)\d{3,}\b(?!\s*[a-zA-Z_])/g);
+  if (magicNumbers && magicNumbers.length > 3) {
+    issues.push({
+      type: 'info',
+      title: 'Magic numbers detected - use named constants',
+      description: 'Unexplained numbers like 86400, 1000, 3600 make code hard to understand and maintain. When the same number appears multiple times, changing it requires finding every instance.',
+      suggestion: 'Replace with named constants: const SECONDS_IN_DAY = 86400; const MAX_RETRIES = 3; const DEFAULT_TIMEOUT_MS = 5000. Use SCREAMING_SNAKE_CASE for constants. Group related constants in an object or enum.',
+    });
+  }
   
-  // Missing documentation
+  // 10. Insufficient Documentation
   const metrics = calculateMetrics(code, language);
   const commentRatio = metrics.commentLines / (metrics.codeLines || 1);
   if (metrics.functions > 3 && commentRatio < 0.1) {
     issues.push({
       type: 'info',
-      title: 'Insufficient code documentation',
-      description: `Found ${metrics.functions} functions but only ${metrics.commentLines} comment lines. Undocumented code is harder to maintain and understand.`,
-      suggestion: 'Add JSDoc/docstring comments for each function explaining parameters, return values, and purpose. Example: /** @param {string} id - User ID @returns {User} User object */',
+      title: 'Low code documentation',
+      description: `Found ${metrics.functions} functions but only ${Math.round(commentRatio * 100)}% comments. Undocumented code is a maintenance nightmare. Future developers (including you in 6 months) won't understand the "why" behind decisions.`,
+      suggestion: language.match(/javascript|typescript/)
+        ? 'Add JSDoc comments: /** @param {string} userId - Unique user identifier * @returns {Promise<User>} User object * @throws {NotFoundError} If user doesn\'t exist */. Document complex logic, edge cases, and business rules. Use clear variable names to reduce need for comments.'
+        : language.match(/python/)
+        ? 'Add docstrings: """Fetch user by ID. Args: user_id (str): Unique identifier. Returns: User: User object. Raises: NotFoundError: If user not found.""". Follow PEP 257 conventions.'
+        : 'Add function/method documentation explaining parameters, return values, exceptions, and purpose. Document non-obvious logic and business rules.',
+    });
+  }
+  
+  // 11. Long Functions
+  let inFunction = false;
+  let functionStart = 0;
+  let braceCount = 0;
+  lines.forEach((line, idx) => {
+    if (!inFunction && /function|def |fn |func /.test(line)) {
+      inFunction = true;
+      functionStart = idx;
+      braceCount = 0;
+    }
+    if (inFunction) {
+      braceCount += (line.match(/\{/g) || []).length;
+      braceCount -= (line.match(/\}/g) || []).length;
+      if (braceCount === 0 && (idx - functionStart) > 60) {
+        issues.push({
+          type: 'info',
+          title: 'Long function detected',
+          description: `Function starting at line ${functionStart + 1} spans ${idx - functionStart} lines. Long functions are hard to test, understand, debug, and reuse. They often violate the Single Responsibility Principle.`,
+          line: functionStart + 1,
+          suggestion: 'Break down into smaller functions with clear names: extract repeated logic, separate concerns (validation, processing, formatting), create helper functions. Aim for functions under 30 lines that do one thing well.',
+        });
+        inFunction = false;
+      }
+    }
+  });
+  
+  // 12. Commented-out code
+  const commentedCodeLines = lines.filter(line => 
+    /^[\s]*\/\/\s*[a-zA-Z]+.*[;{}\(\)]/.test(line) || 
+    /^[\s]*#\s*[a-zA-Z]+.*[;:\(\)]/.test(line)
+  ).length;
+  if (commentedCodeLines > 3) {
+    issues.push({
+      type: 'info',
+      title: 'Commented-out code found',
+      description: `Found ${commentedCodeLines} lines of commented code. Commented code creates confusion, clutter, and false positives in searches. Version control (Git) already preserves history.`,
+      suggestion: 'Delete commented code - it\'s in Git history if you need it. If keeping for reference, add a comment explaining why and when to remove it. Better: use feature flags for experimental code.',
     });
   }
   
@@ -231,85 +288,178 @@ function detectAIGeneration(code: string, language: string): AIDetectionResult {
   let aiScore = 0;
   let humanScore = 0;
   
-  // Check for overly perfect formatting
   const lines = code.split('\n');
+  
+  // 1. Perfect Indentation Pattern (strong AI indicator)
   const perfectIndentation = lines.filter(line => {
     const spaces = line.match(/^\s*/)?.[0].length || 0;
-    return spaces % 2 === 0 || spaces % 4 === 0;
+    return line.trim().length === 0 || spaces % 2 === 0 || spaces % 4 === 0;
   }).length;
   
-  if (perfectIndentation / lines.length > 0.9) {
-    aiScore += 15;
-    indicators.push({ type: 'ai', text: 'Consistent, perfect indentation throughout' });
-  } else {
-    humanScore += 10;
-    indicators.push({ type: 'human', text: 'Inconsistent formatting patterns' });
-  }
-  
-  // Check for generic variable names
-  const genericNames = /\b(data|result|response|item|value|temp|tmp|foo|bar|obj)\b/g;
-  const genericCount = (code.match(genericNames) || []).length;
-  if (genericCount > 5) {
-    aiScore += 20;
-    indicators.push({ type: 'ai', text: 'Excessive use of generic variable names' });
-  }
-  
-  // Check for comprehensive comments
-  const commentRatio = code.split('\n').filter(l => l.trim().startsWith('//') || l.trim().startsWith('#')).length / lines.length;
-  if (commentRatio > 0.2) {
-    aiScore += 15;
-    indicators.push({ type: 'ai', text: 'High comment-to-code ratio with formal documentation' });
-  } else if (commentRatio > 0 && commentRatio < 0.1) {
-    humanScore += 10;
-    indicators.push({ type: 'human', text: 'Minimal, practical comments' });
-  }
-  
-  // Check for TODO/FIXME (human trait)
-  if (/TODO|FIXME|HACK|XXX/i.test(code)) {
-    humanScore += 20;
-    indicators.push({ type: 'human', text: 'Contains TODO/FIXME comments' });
-  }
-  
-  // Check for console.log debugging (human trait)
-  const debugStatements = (code.match(/console\.(log|debug)|print\(|println\(/g) || []).length;
-  if (debugStatements > 2) {
+  if (perfectIndentation / lines.length > 0.95) {
+    aiScore += 18;
+    indicators.push({ 
+      type: 'ai', 
+      text: 'Perfect, consistent indentation throughout (95%+ lines). Human code typically has occasional spacing inconsistencies from quick edits or multiple authors.' 
+    });
+  } else if (perfectIndentation / lines.length < 0.85) {
     humanScore += 15;
-    indicators.push({ type: 'human', text: 'Debug statements present' });
+    indicators.push({ 
+      type: 'human', 
+      text: 'Inconsistent indentation patterns. Natural when code evolves over time with different edits.' 
+    });
   }
   
-  // Check for repetitive patterns (AI trait)
-  const repeatedPatterns = code.match(/(.{20,})\1{2,}/g);
-  if (repeatedPatterns && repeatedPatterns.length > 0) {
-    aiScore += 10;
-    indicators.push({ type: 'ai', text: 'Highly repetitive code structures' });
+  // 2. Generic Variable Names (AI tends to use more generic names)
+  const genericNames = /\b(data|result|response|item|value|temp|tmp|foo|bar|obj|arr|element|config|options|params)\b/g;
+  const totalVars = (code.match(/\b(?:const|let|var|def|auto|int|string)\s+(\w+)/g) || []).length;
+  const genericCount = (code.match(genericNames) || []).length;
+  const genericRatio = totalVars > 0 ? genericCount / totalVars : 0;
+  
+  if (genericRatio > 0.4) {
+    aiScore += 22;
+    indicators.push({ 
+      type: 'ai', 
+      text: `${Math.round(genericRatio * 100)}% generic variable names (data, result, item). AI models favor descriptive but generic naming patterns.` 
+    });
+  } else if (genericRatio < 0.2 && totalVars > 5) {
+    humanScore += 12;
+    indicators.push({ 
+      type: 'human', 
+      text: 'Domain-specific, contextual variable names showing familiarity with the problem space.' 
+    });
   }
   
-  // Check for verbose naming (AI trait)
-  const longNames = code.match(/\b[a-z][a-zA-Z]{15,}\b/g);
-  if (longNames && longNames.length > 3) {
-    aiScore += 10;
-    indicators.push({ type: 'ai', text: 'Verbose, descriptive naming conventions' });
+  // 3. Comment Style and Density
+  const commentLines = lines.filter(l => l.trim().startsWith('//') || l.trim().startsWith('#') || l.trim().startsWith('*'));
+  const commentRatio = commentLines.length / lines.length;
+  const formalComments = commentLines.filter(l => /\b(function|method|parameter|returns?|description|example)\b/i.test(l)).length;
+  
+  if (commentRatio > 0.25 && formalComments > commentLines.length * 0.5) {
+    aiScore += 20;
+    indicators.push({ 
+      type: 'ai', 
+      text: 'High density of formal documentation comments (JSDoc/docstring style). AI often generates comprehensive docs even for simple code.' 
+    });
+  } else if (commentRatio > 0 && commentRatio < 0.1 && formalComments < 2) {
+    humanScore += 12;
+    indicators.push({ 
+      type: 'human', 
+      text: 'Minimal, informal comments. Humans often under-document or add quick explanatory notes rather than formal docs.' 
+    });
   }
   
-  // Check for personal style quirks (human trait)
-  if (/\b(lol|wtf|damn|shit)\b/i.test(code)) {
+  // 4. TODO/FIXME/Development Markers (strong human indicator)
+  const devMarkers = (code.match(/TODO|FIXME|HACK|XXX|BUG|WIP|NOTE|TEMP/gi) || []).length;
+  if (devMarkers > 0) {
     humanScore += 25;
-    indicators.push({ type: 'human', text: 'Informal language in comments' });
+    indicators.push({ 
+      type: 'human', 
+      text: `${devMarkers} development marker(s) found (TODO/FIXME/HACK). Strong indicator of iterative human development and self-reminders.` 
+    });
   }
   
-  // Unusual spacing patterns (human trait)
-  if (/\(\s{2,}|\s{2,}\)|\{\s{2,}|\s{2,}\}/.test(code)) {
-    humanScore += 10;
-    indicators.push({ type: 'human', text: 'Irregular spacing patterns' });
+  // 5. Debug Statements (human trait)
+  const debugStatements = (code.match(/console\.(log|debug|dir|table)|print\(|println\(|debugger;|dump\(/g) || []).length;
+  if (debugStatements > 2) {
+    humanScore += 18;
+    indicators.push({ 
+      type: 'human', 
+      text: `${debugStatements} debug statement(s) present. Developers leave these during development; AI typically doesn't include them.` 
+    });
   }
   
+  // 6. Code Repetition Patterns
+  const repeatedBlocks = new Map<string, number>();
+  for (let i = 0; i < lines.length - 3; i++) {
+    const block = lines.slice(i, i + 3).join('\n').trim();
+    if (block.length > 20) {
+      repeatedBlocks.set(block, (repeatedBlocks.get(block) || 0) + 1);
+    }
+  }
+  const highRepetition = Array.from(repeatedBlocks.values()).filter(count => count > 2).length;
+  
+  if (highRepetition > 3) {
+    aiScore += 15;
+    indicators.push({ 
+      type: 'ai', 
+      text: 'Multiple highly repetitive code blocks. AI often generates similar patterns; humans typically refactor or vary implementations.' 
+    });
+  }
+  
+  // 7. Verbose, Descriptive Naming (AI trait)
+  const longIdentifiers = code.match(/\b[a-z][a-zA-Z]{18,}\b/g);
+  if (longIdentifiers && longIdentifiers.length > 4) {
+    aiScore += 12;
+    indicators.push({ 
+      type: 'ai', 
+      text: `${longIdentifiers.length} very long identifier(s) (19+ characters). AI favors verbose, self-documenting names; humans often abbreviate.` 
+    });
+  }
+  
+  // 8. Personal Style Quirks (strong human indicator)
+  const casualLanguage = /\b(lol|wtf|damn|shit|crap|hell|hmm|oops|yikes)\b/i.test(code);
+  if (casualLanguage) {
+    humanScore += 30;
+    indicators.push({ 
+      type: 'human', 
+      text: 'Informal/casual language in comments. Very strong indicator of human authorship - AI avoids unprofessional language.' 
+    });
+  }
+  
+  // 9. Irregular Spacing/Formatting (human trait)
+  const irregularSpacing = /\(\s{2,}|\s{2,}\)|\{\s{2,}|\s{2,}\}|\s{3,}\w|=\s{2,}|,\s{3,}/g;
+  const spacingIssues = (code.match(irregularSpacing) || []).length;
+  if (spacingIssues > 3) {
+    humanScore += 14;
+    indicators.push({ 
+      type: 'human', 
+      text: 'Irregular spacing patterns detected. Human code often has spacing inconsistencies from manual typing and edits.' 
+    });
+  }
+  
+  // 10. Error Handling Presence (sophisticated indicator)
+  const hasErrorHandling = /try|catch|except|throw|raise|error|Error|Exception/i.test(code);
+  const hasComprehensiveHandling = (code.match(/try\s*{[\s\S]*?catch\s*\(/g) || []).length > 1;
+  
+  if (hasComprehensiveHandling && commentRatio > 0.2) {
+    aiScore += 10;
+    indicators.push({ 
+      type: 'ai', 
+      text: 'Comprehensive error handling with documentation. AI generates complete, defensive code patterns.' 
+    });
+  } else if (!hasErrorHandling && lines.length > 20) {
+    humanScore += 8;
+    indicators.push({ 
+      type: 'human', 
+      text: 'Minimal error handling in medium-length code. Humans often skip error handling in quick implementations.' 
+    });
+  }
+  
+  // 11. Code Structure Quality
+  const avgLineLength = lines.reduce((sum, line) => sum + line.length, 0) / lines.length;
+  if (avgLineLength > 60 && avgLineLength < 85 && perfectIndentation / lines.length > 0.9) {
+    aiScore += 8;
+    indicators.push({ 
+      type: 'ai', 
+      text: 'Consistently optimal line length (60-85 chars) with perfect structure. AI follows style guides precisely.' 
+    });
+  }
+  
+  // Calculate final confidence
   const totalScore = aiScore + humanScore;
   const aiConfidence = totalScore > 0 ? (aiScore / totalScore) * 100 : 50;
+  
+  // Sort indicators by relevance (AI indicators first if likely AI, human first if likely human)
+  const sortedIndicators = indicators.sort((a, b) => {
+    if (aiConfidence > 60) return a.type === 'ai' ? -1 : 1;
+    return a.type === 'human' ? -1 : 1;
+  });
   
   return {
     isLikelyAI: aiConfidence > 60,
     confidence: Math.round(aiConfidence),
-    indicators: indicators.slice(0, 5),
+    indicators: sortedIndicators.slice(0, 6),
   };
 }
 

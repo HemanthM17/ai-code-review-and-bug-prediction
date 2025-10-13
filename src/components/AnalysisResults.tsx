@@ -1,8 +1,129 @@
-import { AlertCircle, CheckCircle2, Info, Bug, Shield, Gauge, Brain, User } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Bug, Shield, Gauge, Brain, User, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import type { AnalysisResult, Issue } from "@/utils/codeAnalysis";
+
+interface Recommendation {
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+  example?: string;
+}
+
+function generateRecommendations(result: AnalysisResult): Recommendation[] {
+  const recommendations: Recommendation[] = [];
+  const { issues, metrics, score } = result;
+  
+  // Critical security issues take priority
+  const hasCriticalSecurity = issues.some(i => i.type === 'critical' && (i.title.includes('SQL') || i.title.includes('XSS') || i.title.includes('eval')));
+  if (hasCriticalSecurity) {
+    recommendations.push({
+      title: '🚨 Address Critical Security Vulnerabilities First',
+      description: 'Your code has critical security issues that could lead to data breaches or system compromise. These should be fixed before any other changes. Security vulnerabilities put your users, data, and reputation at risk.',
+      priority: 'High',
+      example: 'Review all critical issues above and implement the suggested fixes immediately.'
+    });
+  }
+  
+  // Hardcoded credentials
+  const hasCredentials = issues.some(i => i.title.includes('credential'));
+  if (hasCredentials) {
+    recommendations.push({
+      title: '🔐 Move Secrets to Environment Variables',
+      description: 'Hardcoded API keys and passwords are visible to anyone with repository access and remain in Git history forever. Even if deleted later, they can be found. Use environment variables and secret management systems.',
+      priority: 'High',
+      example: 'Create a .env file, add it to .gitignore, and use process.env.API_KEY instead.'
+    });
+  }
+  
+  // Error handling
+  const lacksErrorHandling = issues.some(i => i.title.includes('error handling'));
+  if (lacksErrorHandling) {
+    recommendations.push({
+      title: '🛡️ Implement Robust Error Handling',
+      description: 'Your async operations lack error handling, which can cause unexpected crashes and poor user experience. Wrap async calls in try-catch blocks and provide meaningful feedback to users when things go wrong.',
+      priority: 'High',
+      example: 'try { await fetchData(); } catch (error) { showErrorToast("Failed to load"); }'
+    });
+  }
+  
+  // High complexity
+  if (metrics.complexity > 15) {
+    recommendations.push({
+      title: '🔄 Reduce Cyclomatic Complexity',
+      description: `Your code has high complexity (${metrics.complexity}). Complex code is harder to test, debug, and maintain. Break down large functions, reduce nested conditions, and extract reusable logic into separate functions.`,
+      priority: 'Medium',
+      example: 'Split functions with many if/else branches into smaller, focused functions with clear names.'
+    });
+  }
+  
+  // Documentation
+  const needsDocs = issues.some(i => i.title.includes('documentation'));
+  if (needsDocs && metrics.functions > 3) {
+    recommendations.push({
+      title: '📚 Add Function Documentation',
+      description: `You have ${metrics.functions} functions but minimal documentation. Future developers (including yourself) will struggle to understand the code. Add JSDoc/docstring comments explaining what each function does, its parameters, and return values.`,
+      priority: 'Medium',
+      example: '/** @param {string} id - User ID @returns {Promise<User>} User object */'
+    });
+  }
+  
+  // Console statements
+  const hasConsole = issues.some(i => i.title.includes('console'));
+  if (hasConsole) {
+    recommendations.push({
+      title: '🧹 Remove Debug Console Statements',
+      description: 'Console statements left in production code can expose sensitive information and impact performance. Set up proper logging with environment-based levels, and use error tracking tools like Sentry.',
+      priority: 'Medium',
+      example: 'Replace console.log with a logger: logger.debug("only in dev") or remove entirely.'
+    });
+  }
+  
+  // TODO items
+  const hasTodos = issues.some(i => i.title.includes('TODO') || i.title.includes('FIXME'));
+  if (hasTodos) {
+    recommendations.push({
+      title: '✅ Complete or Track Pending Tasks',
+      description: 'TODO comments indicate unfinished work. Either complete the tasks before deployment, or create proper tickets in your issue tracker (GitHub Issues, Jira, Linear) with assigned owners and deadlines.',
+      priority: 'Low',
+      example: 'Review each TODO: fix it, ticket it, or remove it if no longer relevant.'
+    });
+  }
+  
+  // Long functions
+  const hasLongFunctions = issues.some(i => i.title.includes('Long function'));
+  if (hasLongFunctions) {
+    recommendations.push({
+      title: '✂️ Break Down Large Functions',
+      description: 'Long functions (50+ lines) violate the Single Responsibility Principle and are hard to test and understand. Extract logical sections into smaller, well-named helper functions that do one thing well.',
+      priority: 'Low',
+      example: 'Extract validation logic, formatting, and API calls into separate functions.'
+    });
+  }
+  
+  // General good practices if score is good
+  if (score >= 80 && recommendations.length < 3) {
+    recommendations.push({
+      title: '🎯 Maintain Code Quality',
+      description: 'Your code is in great shape! To keep it that way, consider setting up automated tools: ESLint/Prettier for formatting, Husky for pre-commit hooks, and Jest for unit tests. These catch issues before they reach production.',
+      priority: 'Low',
+      example: 'Add "npm run lint" to your CI/CD pipeline to enforce code quality.'
+    });
+  }
+  
+  // Add testing recommendation if not mentioned
+  if (recommendations.length < 5 && !recommendations.some(r => r.title.includes('Test'))) {
+    recommendations.push({
+      title: '🧪 Write Unit Tests',
+      description: 'Tests prevent regressions, document behavior, and give confidence when refactoring. Start with testing critical functions and edge cases. Aim for 70%+ coverage on business logic.',
+      priority: 'Low',
+      example: 'Use Jest, Vitest, or Pytest to test your functions. Focus on edge cases and error conditions.'
+    });
+  }
+  
+  return recommendations.slice(0, 5);
+}
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
@@ -147,45 +268,39 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
         </Card>
       )}
 
-      {/* Recommendations */}
-      <Card className="card-gradient">
+      {/* Smart Recommendations */}
+      <Card className="card-gradient border-success/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CheckCircle2 className="w-6 h-6 text-success" />
-            Recommended Improvements
+            Personalized Recommendations
           </CardTitle>
+          <CardDescription>
+            Based on your code analysis, here's what we suggest working on next
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-              <div>
-                <p className="font-medium">Add Comprehensive Documentation</p>
-                <p className="text-sm text-muted-foreground">Document functions, classes, and complex logic</p>
+          <div className="space-y-4">
+            {generateRecommendations(result).map((rec, index) => (
+              <div key={index} className="flex items-start gap-3 p-4 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50 hover:border-primary/30 transition-colors">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-primary font-bold text-sm">{index + 1}</span>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{rec.title}</p>
+                    <Badge variant="outline" className="text-xs">{rec.priority}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{rec.description}</p>
+                  {rec.example && (
+                    <div className="mt-2 p-3 bg-secondary/50 rounded border border-border/30">
+                      <p className="text-xs font-mono text-muted-foreground">{rec.example}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-              <div>
-                <p className="font-medium">Implement Error Handling</p>
-                <p className="text-sm text-muted-foreground">Add try-catch blocks and input validation</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-              <div>
-                <p className="font-medium">Write Unit Tests</p>
-                <p className="text-sm text-muted-foreground">Increase test coverage to prevent bugs</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-              <div>
-                <p className="font-medium">Follow Coding Standards</p>
-                <p className="text-sm text-muted-foreground">Use linters and formatters for consistency</p>
-              </div>
-            </li>
-          </ul>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </section>
@@ -239,11 +354,12 @@ const IssueCard = ({ issue }: { issue: Issue }) => {
             </Badge>
           </div>
           
-          <div className="pl-8 p-4 bg-secondary/30 rounded-lg border border-border/30">
-            <p className="text-sm">
-              <span className="font-medium text-primary">💡 Suggestion: </span>
-              <span className="text-muted-foreground">{issue.suggestion}</span>
-            </p>
+          <div className="pl-8 p-4 bg-secondary/30 rounded-lg border border-border/30 space-y-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="font-semibold text-sm text-primary">How to Fix This</span>
+            </div>
+            <p className="text-sm leading-relaxed text-muted-foreground">{issue.suggestion}</p>
           </div>
         </div>
       </CardContent>
