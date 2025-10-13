@@ -102,6 +102,195 @@ function detectIssues(code: string, language: string): Issue[] {
   const issues: Issue[] = [];
   const lines = code.split('\n');
   
+  // Common Programming Errors & Bugs
+  
+  // 1. Assignment in conditionals (= instead of ==)
+  const assignmentInCondition = lines.map((line, idx) => {
+    if (/if\s*\([^)]*[^=!<>]\s=\s[^=]/.test(line) && !/===|==/.test(line)) {
+      return idx + 1;
+    }
+    return null;
+  }).filter(Boolean);
+  
+  if (assignmentInCondition.length > 0) {
+    assignmentInCondition.forEach(lineNum => {
+      issues.push({
+        type: 'critical',
+        title: 'BUG: Assignment operator in conditional',
+        description: `Line ${lineNum} uses assignment (=) instead of comparison (== or ===) in an if statement. This will always assign the value and evaluate to true/truthy, not compare values. This is almost always a bug.`,
+        line: lineNum as number,
+        suggestion: 'Change = to === for strict equality check. Example: if (n === 0) instead of if (n = 0). Use == only if you intentionally want type coercion.',
+      });
+    });
+  }
+  
+  // 2. Missing template literal backticks
+  const templateLiteralError = lines.map((line, idx) => {
+    if (/console\.log\([^`]*\$\{/.test(line) || /return\s+[^`]*\$\{/.test(line)) {
+      return idx + 1;
+    }
+    return null;
+  }).filter(Boolean);
+  
+  if (templateLiteralError.length > 0) {
+    templateLiteralError.forEach(lineNum => {
+      issues.push({
+        type: 'critical',
+        title: 'SYNTAX ERROR: Missing backticks for template literal',
+        description: `Line ${lineNum} uses template literal syntax (\${}) but is missing backticks. This will cause a syntax error. Template literals must use backticks (\`), not single or double quotes.`,
+        line: lineNum as number,
+        suggestion: 'Replace quotes with backticks: console.log(`Factorial of \${num} is: \${result}`);',
+      });
+    });
+  }
+  
+  // 3. String passed to mathematical operations
+  if (language.match(/javascript|typescript/)) {
+    const mathWithStrings = lines.map((line, idx) => {
+      if (/["']\d+["']/.test(line) && (
+        /factorial|calculate|multiply|divide|add|subtract|Math\./i.test(lines.slice(Math.max(0, idx - 3), idx + 3).join(' '))
+      )) {
+        return idx + 1;
+      }
+      return null;
+    }).filter(Boolean);
+    
+    if (mathWithStrings.length > 0) {
+      mathWithStrings.forEach(lineNum => {
+        issues.push({
+          type: 'warning',
+          title: 'BUG: String used in numeric context',
+          description: `Line ${lineNum} uses a string (e.g., "5") where a number is expected. This can cause type coercion issues, NaN results, or unexpected string concatenation instead of addition.`,
+          line: lineNum as number,
+          suggestion: 'Remove quotes to use numbers: const number = 5; not const number = "5". Or parse strings: parseInt(str) or Number(str).',
+        });
+      });
+    }
+  }
+  
+  // 4. Common typos and mistakes
+  const commonMistakes = [
+    { pattern: /lenght/, fix: 'length', name: 'lenght' },
+    { pattern: /fucntion/, fix: 'function', name: 'fucntion' },
+    { pattern: /retrun/, fix: 'return', name: 'retrun' },
+    { pattern: /consoel/, fix: 'console', name: 'consoel' },
+    { pattern: /udefined/, fix: 'undefined', name: 'udefined' },
+  ];
+  
+  commonMistakes.forEach(mistake => {
+    const typoLines = lines.map((line, idx) => mistake.pattern.test(line) ? idx + 1 : null).filter(Boolean);
+    if (typoLines.length > 0) {
+      issues.push({
+        type: 'critical',
+        title: `TYPO: '${mistake.name}' should be '${mistake.fix}'`,
+        description: `Found typo on line ${typoLines[0]}. This will cause a ReferenceError or unexpected behavior.`,
+        line: typoLines[0] as number,
+        suggestion: `Correct the spelling to '${mistake.fix}'.`,
+      });
+    }
+  });
+  
+  // 5. Missing semicolons (potentially problematic)
+  if (language.match(/javascript|typescript/)) {
+    let missingSemicolonCount = 0;
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed && 
+          /^(const|let|var|return)\s/.test(trimmed) && 
+          !trimmed.endsWith(';') && 
+          !trimmed.endsWith('{') &&
+          !trimmed.endsWith(',') &&
+          idx < lines.length - 1) {
+        missingSemicolonCount++;
+      }
+    });
+    
+    if (missingSemicolonCount > 3) {
+      issues.push({
+        type: 'info',
+        title: 'Missing semicolons detected',
+        description: `Found ${missingSemicolonCount} statements without semicolons. While JavaScript has ASI (Automatic Semicolon Insertion), it can cause subtle bugs in certain cases.`,
+        suggestion: 'Add semicolons at the end of statements, or use a linter like ESLint with automatic fixing to enforce consistency.',
+      });
+    }
+  }
+  
+  // 6. Unused variables
+  if (language.match(/javascript|typescript/)) {
+    const declaredVars = new Set<string>();
+    const usedVars = new Set<string>();
+    
+    lines.forEach(line => {
+      const varDeclarations = line.match(/(?:const|let|var)\s+(\w+)/g);
+      if (varDeclarations) {
+        varDeclarations.forEach(decl => {
+          const match = decl.match(/\s+(\w+)/);
+          if (match) declaredVars.add(match[1]);
+        });
+      }
+    });
+    
+    code.split(/\s+/).forEach(word => {
+      const cleaned = word.replace(/[^\w]/g, '');
+      if (cleaned && declaredVars.has(cleaned)) {
+        usedVars.add(cleaned);
+      }
+    });
+    
+    const unused = Array.from(declaredVars).filter(v => {
+      const usage = code.split(v).length - 1;
+      return usage <= 1; // Only declared, never used elsewhere
+    });
+    
+    if (unused.length > 0) {
+      issues.push({
+        type: 'info',
+        title: `Unused variable${unused.length > 1 ? 's' : ''}: ${unused.join(', ')}`,
+        description: `Declared ${unused.length} variable(s) that are never used. Dead code clutters the codebase and may indicate incomplete refactoring.`,
+        suggestion: 'Remove unused variables or use them if they were meant to be used. Modern IDEs can highlight these automatically.',
+      });
+    }
+  }
+  
+  // 7. Missing return statement
+  if (language.match(/javascript|typescript/)) {
+    let inFunction = false;
+    let functionStart = 0;
+    let hasReturn = false;
+    let braceCount = 0;
+    
+    lines.forEach((line, idx) => {
+      if (/function\s+\w+/.test(line) && !line.includes('=>')) {
+        inFunction = true;
+        functionStart = idx;
+        hasReturn = false;
+        braceCount = 0;
+      }
+      
+      if (inFunction) {
+        braceCount += (line.match(/\{/g) || []).length;
+        braceCount -= (line.match(/\}/g) || []).length;
+        
+        if (/return\s/.test(line)) {
+          hasReturn = true;
+        }
+        
+        if (braceCount === 0 && idx > functionStart) {
+          if (!hasReturn && lines.slice(functionStart, idx + 1).join(' ').length > 100) {
+            issues.push({
+              type: 'warning',
+              title: 'Function may be missing return statement',
+              description: `Function starting at line ${functionStart + 1} has no return statement. If this function should return a value, it will return undefined.`,
+              line: functionStart + 1,
+              suggestion: 'Add a return statement if the function should return a value, or clarify if it\'s intentionally a void function.',
+            });
+          }
+          inFunction = false;
+        }
+      }
+    });
+  }
+  
   // Advanced Security Analysis
   
   // 1. eval() - Critical Security Risk

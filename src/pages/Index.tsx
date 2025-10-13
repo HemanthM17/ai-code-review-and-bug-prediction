@@ -17,17 +17,22 @@ const Index = () => {
   };
 
   const handleViewDemo = () => {
-    const exampleCode = `function authenticateUser(username, password) {
-  // TODO: Add input validation
-  const query = "SELECT * FROM users WHERE username = '" + username + "' AND password = '" + password + "'";
-  const result = eval("database.query('" + query + "')");
-  
-  console.log("User data:", result);
-  console.log("Password:", password);
-  document.getElementById('output').innerHTML = result.name;
-  
-  return result;
-}`;
+    const exampleCode = `function factorial(n) {
+  if (n < 0) {
+    return "Not defined for negative numbers";
+  } else if (n = 0 || n === 1) {
+    return 1;
+  } else {
+    return n * factorial(n - 1);
+  }
+}
+
+const number = "5";
+const result = factorial(number);
+console.log(Factorial of \${number} is: \${result});
+
+// TODO: Add input validation
+const API_KEY = "sk_live_1234567890abcdef";`;
     setDemoCode(exampleCode);
     setDemoLanguage('javascript');
     
