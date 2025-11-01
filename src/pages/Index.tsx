@@ -1,8 +1,11 @@
 import { useState, useRef } from "react";
+import { Navigation } from "@/components/Navigation";
 import { Hero } from "@/components/Hero";
 import { SupportedLanguages } from "@/components/SupportedLanguages";
 import { CodeInput } from "@/components/CodeInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
+import { Footer } from "@/components/Footer";
+import { PrivacyBanner } from "@/components/PrivacyBanner";
 import { analyzeCode, type AnalysisResult } from "@/utils/codeAnalysis";
 
 const Index = () => {
@@ -56,12 +59,15 @@ const API_KEY = "sk_live_1234567890abcdef";`;
 
   return (
     <div className="min-h-screen bg-background">
+      <Navigation />
       <Hero onGetStarted={handleGetStarted} onViewDemo={handleViewDemo} />
       <SupportedLanguages />
       <div ref={codeInputRef}>
         <CodeInput onAnalyze={handleAnalyze} demoCode={demoCode} demoLanguage={demoLanguage} />
       </div>
       {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
+      <Footer />
+      <PrivacyBanner />
     </div>
   );
 };

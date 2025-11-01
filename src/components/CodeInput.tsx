@@ -10,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Code, Sparkles } from "lucide-react";
+import { Upload, Code, Sparkles, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CodeInputProps {
   onAnalyze: (code: string, language: string) => void;
@@ -37,6 +38,10 @@ const SUPPORTED_LANGUAGES = [
   { value: "css", label: "CSS", extensions: [".css", ".scss", ".sass"] },
   { value: "sql", label: "SQL", extensions: [".sql"] },
 ];
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_LINES = 50000;
+const MAX_CHARS = 500000;
 
 export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps) => {
   const [code, setCode] = useState("");
@@ -69,6 +74,17 @@ export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps)
       return;
     }
 
+    const lines = code.split('\n').length;
+    if (lines > MAX_LINES) {
+      toast.error(`Code exceeds maximum line limit of ${MAX_LINES.toLocaleString()} lines`);
+      return;
+    }
+
+    if (code.length > MAX_CHARS) {
+      toast.error(`Code exceeds maximum character limit of ${MAX_CHARS.toLocaleString()} characters`);
+      return;
+    }
+
     setIsAnalyzing(true);
     
     // Simulate analysis delay
@@ -82,23 +98,60 @@ export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File size exceeds maximum limit of ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB`);
+        e.target.value = ''; // Reset input
+        return;
+      }
+
       const detectedLang = detectLanguage(file.name);
       setLanguage(detectedLang);
       
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target?.result as string;
+        
+        // Validate content size
+        const lines = content.split('\n').length;
+        if (lines > MAX_LINES) {
+          toast.error(`File exceeds maximum line limit of ${MAX_LINES.toLocaleString()} lines`);
+          e.target.value = '';
+          return;
+        }
+
+        if (content.length > MAX_CHARS) {
+          toast.error(`File exceeds maximum character limit of ${MAX_CHARS.toLocaleString()} characters`);
+          e.target.value = '';
+          return;
+        }
+
         setCode(content);
         toast.success(`File "${file.name}" loaded successfully (${SUPPORTED_LANGUAGES.find(l => l.value === detectedLang)?.label})`);
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read file. Please try again.");
       };
       reader.readAsText(file);
     }
   };
 
+  const lines = code.split('\n').length;
+  const chars = code.length;
+  const isNearLineLimit = lines > MAX_LINES * 0.9;
+  const isNearCharLimit = chars > MAX_CHARS * 0.9;
+
   return (
     <section className="container mx-auto px-4 py-16">
       <Card className="max-w-5xl mx-auto p-8 bg-card/50 backdrop-blur-sm border-border/50">
         <div className="space-y-6">
+          {/* Limitations Alert */}
+          <Alert className="border-muted">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <strong>Limits:</strong> Maximum {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB file size • {MAX_LINES.toLocaleString()} lines • {MAX_CHARS.toLocaleString()} characters
+            </AlertDescription>
+          </Alert>
           <div className="flex items-center justify-between">
             <div className="space-y-2">
               <div>
@@ -197,9 +250,20 @@ language === 'css' ? `.container {
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">
-              {code.split('\n').length} lines • {code.length} characters
-            </span>
+            <div className="flex items-center gap-4">
+              <span className={`text-sm ${isNearLineLimit ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>
+                {lines.toLocaleString()} / {MAX_LINES.toLocaleString()} lines
+              </span>
+              <span className={`text-sm ${isNearCharLimit ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}>
+                {chars.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+              </span>
+              {(isNearLineLimit || isNearCharLimit) && (
+                <span className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="h-3 w-3" />
+                  Approaching limit
+                </span>
+              )}
+            </div>
             
             <Button
               size="lg"

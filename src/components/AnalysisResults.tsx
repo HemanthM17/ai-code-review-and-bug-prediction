@@ -1,7 +1,8 @@
-import { AlertCircle, CheckCircle2, Info, Bug, Shield, Gauge, Brain, User, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Bug, Shield, Gauge, Brain, User, Sparkles, HelpCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AnalysisResult, Issue } from "@/utils/codeAnalysis";
 
 interface Recommendation {
@@ -234,12 +235,48 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
           <div className="pt-4 border-t border-border/50">
             <h3 className="font-semibold mb-4">Code Metrics</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <MetricCard icon={Gauge} label="Lines of Code" value={metrics.linesOfCode} color="text-primary" />
-              <MetricCard icon={Bug} label="Complexity" value={metrics.complexity} color={metrics.complexity > 10 ? "text-warning" : "text-success"} />
-              <MetricCard icon={CheckCircle2} label="Functions" value={metrics.functions} color="text-info" />
-              <MetricCard icon={Info} label="Code Lines" value={metrics.codeLines} color="text-muted-foreground" />
-              <MetricCard icon={Shield} label="Comment Lines" value={metrics.commentLines} color="text-success" />
-              <MetricCard icon={Gauge} label="Classes" value={metrics.classes} color="text-primary" />
+              <MetricCard 
+                icon={Gauge} 
+                label="Lines of Code" 
+                value={metrics.linesOfCode} 
+                color="text-primary"
+                tooltip="Total number of lines in your code, including comments and blank lines" 
+              />
+              <MetricCard 
+                icon={Bug} 
+                label="Complexity" 
+                value={metrics.complexity} 
+                color={metrics.complexity > 10 ? "text-warning" : "text-success"}
+                tooltip="Cyclomatic complexity measures how many different paths exist through your code. Lower is better (aim for <10)"
+              />
+              <MetricCard 
+                icon={CheckCircle2} 
+                label="Functions" 
+                value={metrics.functions} 
+                color="text-info"
+                tooltip="Number of functions or methods defined in your code"
+              />
+              <MetricCard 
+                icon={Info} 
+                label="Code Lines" 
+                value={metrics.codeLines} 
+                color="text-muted-foreground"
+                tooltip="Lines of actual code, excluding comments and blank lines"
+              />
+              <MetricCard 
+                icon={Shield} 
+                label="Comment Lines" 
+                value={metrics.commentLines} 
+                color="text-success"
+                tooltip="Number of comment lines. Good documentation improves code maintainability"
+              />
+              <MetricCard 
+                icon={Gauge} 
+                label="Classes" 
+                value={metrics.classes} 
+                color="text-primary"
+                tooltip="Number of classes defined in your code (for object-oriented languages)"
+              />
             </div>
           </div>
         </CardContent>
@@ -367,10 +404,22 @@ const IssueCard = ({ issue }: { issue: Issue }) => {
   );
 };
 
-const MetricCard = ({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) => (
-  <div className="flex flex-col items-center text-center p-4 rounded-lg bg-secondary/30 border border-border/30">
-    <Icon className={`w-6 h-6 mb-2 ${color}`} />
-    <div className="text-2xl font-bold">{value}</div>
-    <div className="text-xs text-muted-foreground">{label}</div>
-  </div>
+const MetricCard = ({ icon: Icon, label, value, color, tooltip }: { icon: React.ElementType; label: string; value: string | number; color: string; tooltip: string }) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex flex-col items-center text-center p-4 rounded-lg bg-secondary/30 border border-border/30 cursor-help hover:bg-secondary/50 transition-colors">
+          <div className="flex items-center gap-1 mb-2">
+            <Icon className={`w-6 h-6 ${color}`} />
+            <HelpCircle className="w-3 h-3 text-muted-foreground" />
+          </div>
+          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-xs text-muted-foreground">{label}</div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p className="text-sm">{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
 );
