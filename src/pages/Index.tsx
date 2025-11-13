@@ -6,6 +6,7 @@ import { CodeInput } from "@/components/CodeInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
 import { Footer } from "@/components/Footer";
 import { PrivacyBanner } from "@/components/PrivacyBanner";
+import { CodeHelpChat } from "@/components/CodeHelpChat";
 import { analyzeCode, type AnalysisResult } from "@/utils/codeAnalysis";
 
 const Index = () => {
@@ -13,7 +14,14 @@ const Index = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [demoCode, setDemoCode] = useState<string>('');
   const [demoLanguage, setDemoLanguage] = useState<string>('');
+  const [currentCode, setCurrentCode] = useState<string>('');
+  const [currentLanguage, setCurrentLanguage] = useState<string>('javascript');
   const codeInputRef = useRef<HTMLDivElement>(null);
+
+  const handleCodeChange = (code: string, language: string) => {
+    setCurrentCode(code);
+    setCurrentLanguage(language);
+  };
 
   const handleGetStarted = () => {
     codeInputRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -63,11 +71,21 @@ const API_KEY = "sk_live_1234567890abcdef";`;
       <Hero onGetStarted={handleGetStarted} onViewDemo={handleViewDemo} />
       <SupportedLanguages />
       <div ref={codeInputRef}>
-        <CodeInput onAnalyze={handleAnalyze} demoCode={demoCode} demoLanguage={demoLanguage} />
+        <CodeInput 
+          onAnalyze={handleAnalyze} 
+          onCodeChange={handleCodeChange}
+          demoCode={demoCode} 
+          demoLanguage={demoLanguage} 
+        />
       </div>
       {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
       <Footer />
       <PrivacyBanner />
+      <CodeHelpChat 
+        code={currentCode} 
+        language={currentLanguage} 
+        analysisResult={analysisResult} 
+      />
     </div>
   );
 };
