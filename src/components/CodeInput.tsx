@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CodeInputProps {
   onAnalyze: (code: string, language: string) => void;
+  onCodeChange?: (code: string, language: string) => void;
   demoCode?: string;
   demoLanguage?: string;
 }
@@ -43,7 +44,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_LINES = 50000;
 const MAX_CHARS = 500000;
 
-export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps) => {
+export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: CodeInputProps) => {
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -57,6 +58,11 @@ export const CodeInput = ({ onAnalyze, demoCode, demoLanguage }: CodeInputProps)
       }
     }
   }, [demoCode, demoLanguage]);
+
+  // Notify parent when code or language changes
+  useEffect(() => {
+    onCodeChange?.(code, language);
+  }, [code, language, onCodeChange]);
 
   const detectLanguage = (filename: string): string => {
     const ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();
