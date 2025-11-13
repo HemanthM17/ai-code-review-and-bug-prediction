@@ -6,7 +6,7 @@ import { CodeInput } from "@/components/CodeInput";
 import { AnalysisResults } from "@/components/AnalysisResults";
 import { Footer } from "@/components/Footer";
 import { PrivacyBanner } from "@/components/PrivacyBanner";
-import { CodeHelpChat } from "@/components/CodeHelpChat";
+// import { CodeHelpChat } from "@/components/CodeHelpChat";
 import { analyzeCode, type AnalysisResult } from "@/utils/codeAnalysis";
 
 const Index = () => {
@@ -81,11 +81,11 @@ const API_KEY = "sk_live_1234567890abcdef";`;
       {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
       <Footer />
       <PrivacyBanner />
-      <CodeHelpChat 
+      {/* <CodeHelpChat 
         code={currentCode} 
         language={currentLanguage} 
         analysisResult={analysisResult} 
-      />
+      /> */}
     </div>
   );
 };
