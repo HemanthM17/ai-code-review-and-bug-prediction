@@ -4,6 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AnalysisResult, Issue } from "@/utils/codeAnalysis";
+import { analyzeCICD, type CICDAnalysisResult } from "@/utils/cicdAnalysis";
+import { ComplexityChart } from "./ComplexityChart";
+import { CICDAnalysis } from "./CICDAnalysis";
+import { AIFixSuggestions } from "./AIFixSuggestions";
+import { ShareResults } from "./ShareResults";
+import { useMemo } from "react";
 
 interface Recommendation {
   title: string;
@@ -128,10 +134,22 @@ function generateRecommendations(result: AnalysisResult): Recommendation[] {
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
+  code?: string;
+  language?: string;
 }
 
-export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
+export const AnalysisResults = ({ result, code = '', language = 'javascript' }: AnalysisResultsProps) => {
   const { score, issues, metrics, aiDetection } = result;
+  
+  // CI/CD Analysis
+  const cicdResult = useMemo(() => analyzeCICD(code), [code]);
+  
+  // Issue breakdown for charts
+  const issueBreakdown = useMemo(() => ({
+    critical: issues.filter(i => i.type === 'critical').length,
+    warning: issues.filter(i => i.type === 'warning').length,
+    info: issues.filter(i => i.type === 'info').length,
+  }), [issues]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-success";
@@ -340,6 +358,18 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Code Complexity Visualization */}
+      <ComplexityChart metrics={metrics} issueBreakdown={issueBreakdown} />
+
+      {/* CI/CD Pipeline Analysis */}
+      {cicdResult.detected && <CICDAnalysis result={cicdResult} />}
+
+      {/* AI-Powered Fix Suggestions */}
+      <AIFixSuggestions code={code} language={language} issues={issues} />
+
+      {/* Share & Collaboration */}
+      <ShareResults result={result} cicdResult={cicdResult} />
     </section>
   );
 };
