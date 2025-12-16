@@ -10,7 +10,8 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  base: "/ai-code-review-and-bug-prediction/",
+  // Use subpath for GitHub Pages, root for Lovable/custom domains
+  base: process.env.GITHUB_ACTIONS ? "/ai-code-review-and-bug-prediction/" : "/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
