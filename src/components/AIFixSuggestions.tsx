@@ -22,7 +22,9 @@ interface AIFix {
 export const AIFixSuggestions = ({ code, language, issues }: AIFixSuggestionsProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [fixes, setFixes] = useState<AIFix[]>([]);
+  const [fullCorrectedCode, setFullCorrectedCode] = useState<string>('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedFull, setCopiedFull] = useState(false);
 
   const generateFixes = async () => {
     if (issues.length === 0) {
@@ -35,6 +37,7 @@ export const AIFixSuggestions = ({ code, language, issues }: AIFixSuggestionsPro
 
     setIsLoading(true);
     setFixes([]);
+    setFullCorrectedCode('');
 
     try {
       const criticalIssues = issues.filter(i => i.type === 'critical').slice(0, 3);
@@ -74,9 +77,10 @@ export const AIFixSuggestions = ({ code, language, issues }: AIFixSuggestionsPro
       }
 
       setFixes(data.fixes || []);
+      setFullCorrectedCode(data.fullCorrectedCode || '');
       toast({
         title: "AI Analysis Complete",
-        description: `Generated ${data.fixes?.length || 0} fix suggestions`,
+        description: `Generated ${data.fixes?.length || 0} fix suggestions with full corrected code`,
       });
     } catch (error) {
       console.error('AI fix error:', error);
@@ -97,6 +101,16 @@ export const AIFixSuggestions = ({ code, language, issues }: AIFixSuggestionsPro
     toast({
       title: "Copied to clipboard",
       description: "Fixed code has been copied.",
+    });
+  };
+
+  const copyFullCode = () => {
+    navigator.clipboard.writeText(fullCorrectedCode);
+    setCopiedFull(true);
+    setTimeout(() => setCopiedFull(false), 2000);
+    toast({
+      title: "Full code copied!",
+      description: "The complete corrected code has been copied to clipboard.",
     });
   };
 
@@ -148,42 +162,85 @@ export const AIFixSuggestions = ({ code, language, issues }: AIFixSuggestionsPro
           </div>
         )}
 
-        {fixes.length > 0 && (
+        {(fixes.length > 0 || fullCorrectedCode) && (
           <div className="space-y-6">
-            {fixes.map((fix, index) => (
-              <div 
-                key={index} 
-                className="p-4 rounded-lg bg-background/50 border border-border/50 space-y-4"
-              >
-                <div className="flex items-start justify-between gap-4">
+            {/* Full Corrected Code Section */}
+            {fullCorrectedCode && (
+              <div className="p-4 rounded-lg bg-primary/5 border-2 border-primary/30 space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Code className="w-5 h-5 text-primary" />
-                    <h4 className="font-semibold">{fix.issue}</h4>
+                    <Sparkles className="w-6 h-6 text-primary" />
+                    <h3 className="text-lg font-bold text-primary">Complete Corrected Code</h3>
                   </div>
-                  <Badge variant="outline">Fix #{index + 1}</Badge>
-                </div>
-                
-                <p className="text-sm text-muted-foreground">{fix.explanation}</p>
-                
-                <div className="relative">
-                  <pre className="p-4 bg-secondary/50 rounded-lg overflow-x-auto text-sm">
-                    <code>{fix.fixedCode}</code>
-                  </pre>
                   <Button
-                    size="sm"
-                    variant="ghost"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(fix.fixedCode, index)}
+                    onClick={copyFullCode}
+                    className="gap-2"
+                    variant={copiedFull ? "outline" : "default"}
                   >
-                    {copiedIndex === index ? (
-                      <Check className="w-4 h-4 text-success" />
+                    {copiedFull ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Copied!
+                      </>
                     ) : (
-                      <Copy className="w-4 h-4" />
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Copy Full Code
+                      </>
                     )}
                   </Button>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  This is the complete, fully functional code with all issues fixed. Copy and replace your original code.
+                </p>
+                <div className="relative">
+                  <pre className="p-4 bg-secondary/50 rounded-lg overflow-x-auto text-sm max-h-96 overflow-y-auto">
+                    <code>{fullCorrectedCode}</code>
+                  </pre>
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* Individual Fixes Section */}
+            {fixes.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-md font-semibold text-muted-foreground">Individual Fix Explanations</h3>
+                {fixes.map((fix, index) => (
+                  <div 
+                    key={index} 
+                    className="p-4 rounded-lg bg-background/50 border border-border/50 space-y-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <Code className="w-5 h-5 text-primary" />
+                        <h4 className="font-semibold">{fix.issue}</h4>
+                      </div>
+                      <Badge variant="outline">Fix #{index + 1}</Badge>
+                    </div>
+                    
+                    <p className="text-sm text-muted-foreground">{fix.explanation}</p>
+                    
+                    <div className="relative">
+                      <pre className="p-4 bg-secondary/50 rounded-lg overflow-x-auto text-sm">
+                        <code>{fix.fixedCode}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(fix.fixedCode, index)}
+                      >
+                        {copiedIndex === index ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

@@ -51,19 +51,21 @@ ${code}
 ISSUES TO FIX:
 ${issuesList}
 
-For each issue, provide:
-1. The issue title
-2. The corrected code snippet (only the relevant part)
-3. A brief explanation of the fix
+Provide:
+1. Individual fixes for each issue with the corrected code snippet and explanation
+2. The COMPLETE fully functional corrected code with ALL issues fixed
 
-Respond ONLY with a valid JSON array in this exact format (no markdown, no code blocks, just raw JSON):
-[
-  {
-    "issue": "Issue title here",
-    "fixedCode": "corrected code snippet here",
-    "explanation": "Brief explanation of why this fix works"
-  }
-]`;
+Respond ONLY with valid JSON in this exact format (no markdown, no code blocks, just raw JSON):
+{
+  "fixes": [
+    {
+      "issue": "Issue title here",
+      "fixedCode": "corrected code snippet here",
+      "explanation": "Brief explanation of why this fix works"
+    }
+  ],
+  "fullCorrectedCode": "The complete corrected code with all issues fixed goes here"
+}`;
 
     console.log('Calling Lovable AI Gateway...');
     
@@ -114,22 +116,26 @@ Respond ONLY with a valid JSON array in this exact format (no markdown, no code 
     console.log('AI Response content:', content);
 
     // Parse the JSON response
-    let fixes;
+    let result;
     try {
       // Clean up the response - remove any markdown code blocks if present
       let cleanContent = content.trim();
       if (cleanContent.startsWith('```')) {
         cleanContent = cleanContent.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
       }
-      fixes = JSON.parse(cleanContent);
+      result = JSON.parse(cleanContent);
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       console.error('Raw content:', content);
-      fixes = [];
+      result = { fixes: [], fullCorrectedCode: '' };
     }
 
+    // Handle both old array format and new object format
+    const fixes = Array.isArray(result) ? result : (result.fixes || []);
+    const fullCorrectedCode = Array.isArray(result) ? '' : (result.fullCorrectedCode || '');
+
     return new Response(
-      JSON.stringify({ fixes }),
+      JSON.stringify({ fixes, fullCorrectedCode }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
