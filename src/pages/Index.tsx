@@ -78,7 +78,13 @@ const API_KEY = "sk_live_1234567890abcdef";`;
           demoLanguage={demoLanguage} 
         />
       </div>
-      {showResults && analysisResult && <AnalysisResults result={analysisResult} />}
+      {showResults && analysisResult && (
+        <AnalysisResults 
+          result={analysisResult} 
+          code={currentCode} 
+          language={currentLanguage} 
+        />
+      )}
       <Footer />
       <PrivacyBanner />
       {/* <CodeHelpChat 
