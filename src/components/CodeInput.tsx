@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -10,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Code, Sparkles, AlertCircle, Info } from "lucide-react";
+import { Upload, Code, Sparkles, AlertCircle, Info, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { detectLanguageFromCode, getLanguageLabel } from "@/utils/languageDetection";
 
 interface CodeInputProps {
   onAnalyze: (code: string, language: string) => void;
@@ -64,7 +65,26 @@ export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: C
     onCodeChange?.(code, language);
   }, [code, language, onCodeChange]);
 
-  const detectLanguage = (filename: string): string => {
+  // Detect language from code content
+  const detectionResult = useMemo(() => {
+    if (code.trim().length < 20) return null;
+    return detectLanguageFromCode(code);
+  }, [code]);
+
+  // Check if there's a mismatch
+  const languageMismatch = useMemo(() => {
+    if (!detectionResult || detectionResult.confidence < 40) return null;
+    if (detectionResult.detectedLanguage !== language) {
+      return {
+        detected: detectionResult.detectedLanguage,
+        selected: language,
+        confidence: detectionResult.confidence,
+      };
+    }
+    return null;
+  }, [detectionResult, language]);
+
+  const detectLanguageFromFile = (filename: string): string => {
     const ext = filename.substring(filename.lastIndexOf(".")).toLowerCase();
     for (const lang of SUPPORTED_LANGUAGES) {
       if (lang.extensions.includes(ext)) {
@@ -111,7 +131,7 @@ export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: C
         return;
       }
 
-      const detectedLang = detectLanguage(file.name);
+      const detectedLang = detectLanguageFromFile(file.name);
       setLanguage(detectedLang);
       
       const reader = new FileReader();
@@ -142,6 +162,13 @@ export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: C
     }
   };
 
+  const handleUseDetectedLanguage = () => {
+    if (languageMismatch) {
+      setLanguage(languageMismatch.detected);
+      toast.success(`Language changed to ${getLanguageLabel(languageMismatch.detected)}`);
+    }
+  };
+
   const lines = code.split('\n').length;
   const chars = code.length;
   const isNearLineLimit = lines > MAX_LINES * 0.9;
@@ -158,6 +185,42 @@ export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: C
               <strong>Limits:</strong> Maximum {(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB file size • {MAX_LINES.toLocaleString()} lines • {MAX_CHARS.toLocaleString()} characters
             </AlertDescription>
           </Alert>
+
+          {/* Language Mismatch Warning */}
+          {languageMismatch && (
+            <Alert className="border-warning bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertDescription className="text-sm flex items-center justify-between">
+                <span>
+                  <strong>Language mismatch detected!</strong> The code appears to be{" "}
+                  <span className="font-semibold text-primary">{getLanguageLabel(languageMismatch.detected)}</span>{" "}
+                  ({languageMismatch.confidence}% confidence) but you selected{" "}
+                  <span className="font-semibold text-destructive">{getLanguageLabel(languageMismatch.selected)}</span>.
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleUseDetectedLanguage}
+                  className="ml-4 shrink-0"
+                >
+                  Use {getLanguageLabel(languageMismatch.detected)}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Language Match Confirmation */}
+          {detectionResult && !languageMismatch && detectionResult.confidence >= 40 && code.trim().length >= 20 && (
+            <Alert className="border-success/50 bg-success/10">
+              <CheckCircle className="h-4 w-4 text-success" />
+              <AlertDescription className="text-sm">
+                <strong>Language verified!</strong> Code detected as{" "}
+                <span className="font-semibold text-success">{getLanguageLabel(detectionResult.detectedLanguage)}</span>{" "}
+                ({detectionResult.confidence}% confidence) — matches your selection.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="space-y-2">
               <div>
@@ -212,6 +275,13 @@ export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: C
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
                 Selected Language: <span className="text-primary font-medium">{SUPPORTED_LANGUAGES.find(l => l.value === language)?.label}</span>
+                {detectionResult && detectionResult.confidence >= 40 && code.trim().length >= 20 && (
+                  <span className="ml-3 text-muted-foreground/70">
+                    • Detected: <span className={detectionResult.detectedLanguage === language ? "text-success" : "text-warning"}>
+                      {getLanguageLabel(detectionResult.detectedLanguage)}
+                    </span>
+                  </span>
+                )}
               </span>
             </div>
             <Textarea
