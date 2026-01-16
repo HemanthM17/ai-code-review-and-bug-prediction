@@ -1,8 +1,13 @@
 import { Button } from "@/components/ui/button";
-import { Code2, Shield, TrendingUp, Zap } from "lucide-react";
+import { Code2, Shield, TrendingUp, Zap, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import heroBg from "@/assets/hero-bg.jpg";
 
 export const Hero = ({ onGetStarted, onViewDemo }: { onGetStarted: () => void; onViewDemo: () => void }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
       <div 
@@ -32,22 +37,45 @@ export const Hero = ({ onGetStarted, onViewDemo }: { onGetStarted: () => void; o
           </p>
           
           <div className="flex flex-wrap gap-4 justify-center pt-4">
-            <Button 
-              size="lg" 
-              onClick={onGetStarted}
-              className="bg-gradient-primary text-primary-foreground shadow-glow-primary hover:scale-105 transition-transform"
-            >
-              <Code2 className="mr-2 h-5 w-5" />
-              Start Analysis
-            </Button>
-            <Button 
-              size="lg" 
-              variant="secondary"
-              onClick={onViewDemo}
-              className="backdrop-blur-sm"
-            >
-              View Demo
-            </Button>
+            {user ? (
+              <>
+                <Button 
+                  size="lg" 
+                  onClick={() => navigate('/dashboard')}
+                  className="bg-gradient-primary text-primary-foreground shadow-glow-primary hover:scale-105 transition-transform"
+                >
+                  <Code2 className="mr-2 h-5 w-5" />
+                  Go to Dashboard
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="secondary"
+                  onClick={onGetStarted}
+                  className="backdrop-blur-sm"
+                >
+                  Quick Analysis
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  size="lg" 
+                  onClick={() => navigate('/auth')}
+                  className="bg-gradient-primary text-primary-foreground shadow-glow-primary hover:scale-105 transition-transform"
+                >
+                  <LogIn className="mr-2 h-5 w-5" />
+                  Sign In to Start
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="secondary"
+                  onClick={onViewDemo}
+                  className="backdrop-blur-sm"
+                >
+                  View Demo
+                </Button>
+              </>
+            )}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 max-w-3xl mx-auto">

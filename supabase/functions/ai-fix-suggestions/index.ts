@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,36 @@ serve(async (req) => {
   }
 
   try {
+    // Check authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.log('Missing or invalid authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.log('Invalid token:', claimsError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+    console.log('Authenticated user:', userId);
+
     const { code, language, issues } = await req.json();
     
     if (!code || !issues || issues.length === 0) {
@@ -67,7 +98,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks, 
   "fullCorrectedCode": "The complete corrected code with all issues fixed goes here"
 }`;
 
-    console.log('Calling Lovable AI Gateway...');
+    console.log('Calling Lovable AI Gateway for user:', userId);
     
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -113,7 +144,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks, 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '[]';
     
-    console.log('AI Response content:', content);
+    console.log('AI Response received for user:', userId);
 
     // Parse the JSON response
     let result;
