@@ -20,6 +20,7 @@ interface CodeInputProps {
   onCodeChange?: (code: string, language: string) => void;
   demoCode?: string;
   demoLanguage?: string;
+  disabled?: boolean;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -45,7 +46,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_LINES = 50000;
 const MAX_CHARS = 500000;
 
-export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage }: CodeInputProps) => {
+export const CodeInput = ({ onAnalyze, onCodeChange, demoCode, demoLanguage, disabled = false }: CodeInputProps) => {
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -344,7 +345,7 @@ language === 'css' ? `.container {
             <Button
               size="lg"
               onClick={handleAnalyze}
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || disabled}
               className="bg-gradient-primary text-primary-foreground shadow-glow-primary"
             >
               {isAnalyzing ? (
